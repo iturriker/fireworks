@@ -57,7 +57,7 @@ stt_channel.queue_declare(queue=worker.queue_stt)
 
 
 # Registrar el worker al iniciar
-def reg_worker():
+def reg_sender():
     reg_channel.basic_publish(
         exchange='',
         routing_key=worker.queue_reg,
@@ -99,7 +99,7 @@ def stt_sender():
 
 # Punto de entrada
 if __name__ == '__main__':
-    reg_worker()
+    threading.Thread(target=reg_sender, daemon=True).start()
     threading.Thread(target=cmd_listener, daemon=True).start()
     threading.Thread(target=stt_sender, daemon=True).start()
     # Mantener el proceso vivo para que los threads sigan corriendo

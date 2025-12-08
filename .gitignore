@@ -1,0 +1,28 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Pydantic cache
+*.pydantic.cache
+
+# Virtual environments
+venv/
+.env/
+.env.*
+
+# Docker
+*.log
+docker-compose.override.yml
+*.pid
+*.swp
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp

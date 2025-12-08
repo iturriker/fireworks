@@ -23,7 +23,7 @@ worker = Worker(
     queue_stt="worker_stt",
     counter=0,
     timestamp=time.time(),
-    active=False
+    active=True
 )
 
 # Configuración de RabbitMQ

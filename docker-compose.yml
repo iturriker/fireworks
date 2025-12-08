@@ -37,6 +37,8 @@ services:
       context: monitor
       dockerfile: Dockerfile
     container_name: monitor
+    ports:
+      - "8000:8000"
     environment:
       - RABBITMQ_HOST=${RABBITMQ_HOST}
       - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER}
@@ -50,6 +52,20 @@ services:
       - ./monitor:/app
       - ./models:/app/models
     command: ["python", "monitor.py"]
+
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    ports:
+      - "8080:80"
+    volumes:
+      - ./monitor/frontend:/usr/share/nginx/html
+      - ./nginx/nginx.config:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - monitor
+    restart: unless-stopped
+    networks:
+      - worker_network
 
 volumes:
   rabbitmq_data:

@@ -1,2 +1,4 @@
 pika
 pydantic
+fastapi
+uvicorn

@@ -1,11 +1,11 @@
-import json
-import random
 import socket
 import threading
+import logging
+import fastapi
+import uvicorn
 import pika
 import os
-import time
-import logging
+from pydantic import BaseModel
 from models.worker_model import Worker
 from models.monitor_model import Monitor
 
@@ -16,7 +16,6 @@ logging.basicConfig(
 )
 
 # Creación del monitor
-global monitor
 monitor = Monitor(
     id=socket.gethostname(),
     name=f"monitor_{socket.gethostname()[-4:]}",
@@ -24,57 +23,61 @@ monitor = Monitor(
     queue_stt="worker_stt",
 )
 
-RABBIT_USER = os.environ.get("RABBITMQ_DEFAULT_USER")
-RABBIT_PASS = os.environ.get("RABBITMQ_DEFAULT_PASS")
-RABBIT_HOST = os.environ.get("RABBITMQ_HOST")
+# -------------------
+# Inicializar Rabbit
+user = os.environ.get("RABBITMQ_DEFAULT_USER")
+password = os.environ.get("RABBITMQ_DEFAULT_PASS")
+host = os.environ.get("RABBITMQ_HOST")
+credentials = pika.PlainCredentials(user, password)
 
-# Credenciales de RabbitMQ
-credentials = pika.PlainCredentials(RABBIT_USER, RABBIT_PASS)
+# Parámetros de conexión
+conn_params = pika.ConnectionParameters(host=host, credentials=credentials, heartbeat=60, connection_attempts=5, retry_delay=5)
 
-# Registration connection
-reg_connection = pika.BlockingConnection(
-    pika.ConnectionParameters(
-        host=RABBIT_HOST,
-        credentials=credentials,
-        heartbeat=60,
-        connection_attempts=5,
-        retry_delay=5
-    )
-)
+# Conexiones
+reg_connection = pika.BlockingConnection(conn_params)
+cmd_connection = pika.BlockingConnection(conn_params)
+stt_connection = pika.BlockingConnection(conn_params)
 
-# Command connection
-cmd_connection = pika.BlockingConnection(
-    pika.ConnectionParameters(
-        host=RABBIT_HOST,
-        credentials=credentials,
-        heartbeat=60,
-        connection_attempts=5,
-        retry_delay=5
-    )
-)
+# Canales
+reg_channel = reg_connection.channel()
+cmd_channel = cmd_connection.channel()
+stt_channel = stt_connection.channel()
 
-# Status connection
-stt_connection = pika.BlockingConnection(
-    pika.ConnectionParameters(
-        host=RABBIT_HOST,
-        credentials=credentials,
-        heartbeat=60,
-        connection_attempts=5,
-        retry_delay=5
-    )
-)
-
-# Channels para distintos propósitos
-reg_channel = reg_connection.channel()  # para recibir registros
-cmd_channel = cmd_connection.channel()  # para enviar comandos
-stt_channel = stt_connection.channel()  # para recibir estados
-
-# Declarar las queues correspondientes
-# cmd_channel.queue_declare se hará dinámicamente para cada worker
+# Asignar canales
 reg_channel.queue_declare(queue=monitor.queue_reg)
 stt_channel.queue_declare(queue=monitor.queue_stt)
+# cmd_channel.queue_declare se creará dinámicamente para cada worker
 
-# Callback para registrar workers
+
+# -------------------
+# Inicializar FastAPI
+app = fastapi.FastAPI()
+app.title = "Monitor API"
+
+# Rutas de la API
+@app.get("/get/workers")
+def get_workers():
+    return {wid: worker.model_dump() for wid, worker in monitor.workers.items()}
+
+class Command(BaseModel):
+    worker_id: str
+    active: bool
+    
+@app.post("/send/command")
+def send_command(cmd: Command):
+    if not monitor.check_worker_by_id(cmd.worker_id):
+        return {"error": "worker not registered"}
+    worker = monitor.workers[cmd.worker_id]
+    worker.active = cmd.active
+    cmd_sender(worker)
+    logging.info(f"Sent command to {worker.id} -> active: {worker.active}")
+    return {"status": "ok", "worker_id": worker.id, "active": worker.active}
+
+
+# -------------------
+# RabbitMQ callbacks, senders y listeners
+
+# Callback para recibir registros
 def reg_callback(ch, method, properties, body):
     worker = Worker.model_validate_json(body)
 
@@ -86,36 +89,11 @@ def reg_callback(ch, method, properties, body):
     else:
         logging.info(f"Worker {worker.id} already registered, skipping.")
 
-# Listener en un thread para no bloquear
+# Escuchador de registros
 def reg_listener():
     reg_channel.basic_consume(queue=monitor.queue_reg, on_message_callback=reg_callback, auto_ack=True)
     logging.info("Listening for Worker registrations...")
     reg_channel.start_consuming()
-
-# Función para activar/desactivar un worker
-def send_cmd(worker: Worker):
-    
-    cmd_channel.basic_publish(
-        exchange='',
-        routing_key=worker.queue_cmd,
-        body=worker.model_dump_json()
-    )
-
-# Enviar comandos periódicamente
-def cmd_sender():
-    while True:
-        if monitor.workers:
-            # Elegir un worker al azar y alternar su estado active
-            target_worker = random.choice(list(monitor.workers.values()))
-            target_worker.active = not target_worker.active
-            send_cmd(target_worker)
-            
-            logging.info(f"Sent command to {target_worker.id} -> active: {target_worker.active}")
-            time.sleep(1)
-        else:
-            logging.info("No hay workers registrados todavía. Esperando...")
-            time.sleep(1)
-
 
 # Callback para recibir estados
 def stt_callback(ch, method, properties, body):
@@ -126,16 +104,27 @@ def stt_callback(ch, method, properties, body):
         monitor.update_worker(updated_worker)
         logging.info(f"Updated worker {updated_worker.id}")
 
-# Listener en un thread para no bloquear
+# Escuchador de estados
 def stt_listener():
     stt_channel.basic_consume(queue=monitor.queue_stt, on_message_callback=stt_callback, auto_ack=True)
     logging.info("Listening for Worker states...")
     stt_channel.start_consuming()
 
+# Enviar comando a un worker
+def cmd_sender(worker: Worker):
+    cmd_channel.basic_publish(
+        exchange='',
+        routing_key=worker.queue_cmd,
+        body=worker.model_dump_json()
+    )
+
+def start_listeners():
+    threading.Thread(target=reg_listener, daemon=True).start()
+    threading.Thread(target=stt_listener, daemon=True).start()
+    # threading.Event().wait() # Mantener el proceso vivo para que los threads sigan corriendo
+
 # Punto de entrada
 if __name__ == '__main__':
-    threading.Thread(target=reg_listener, daemon=True).start()
-    threading.Thread(target=cmd_sender, daemon=True).start()
-    threading.Thread(target=stt_listener, daemon=True).start()
-    # Mantener el proceso vivo para que los threads sigan corriendo
-    threading.Event().wait()
+    start_listeners()
+    logging.info("Starting FastAPI server...")
+    uvicorn.run(app, host="0.0.0.0", port=8000)

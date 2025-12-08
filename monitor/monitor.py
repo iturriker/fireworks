@@ -32,8 +32,30 @@ RABBIT_HOST = os.environ.get("RABBITMQ_HOST")
 # Credenciales de RabbitMQ
 credentials = pika.PlainCredentials(RABBIT_USER, RABBIT_PASS)
 
-# Conexión a RabbitMQ
-connection = pika.BlockingConnection(
+# Registration connection
+reg_connection = pika.BlockingConnection(
+    pika.ConnectionParameters(
+        host=RABBIT_HOST,
+        credentials=credentials,
+        heartbeat=60,
+        connection_attempts=5,
+        retry_delay=5
+    )
+)
+
+# Command connection
+cmd_connection = pika.BlockingConnection(
+    pika.ConnectionParameters(
+        host=RABBIT_HOST,
+        credentials=credentials,
+        heartbeat=60,
+        connection_attempts=5,
+        retry_delay=5
+    )
+)
+
+# Status connection
+stt_connection = pika.BlockingConnection(
     pika.ConnectionParameters(
         host=RABBIT_HOST,
         credentials=credentials,
@@ -44,9 +66,9 @@ connection = pika.BlockingConnection(
 )
 
 # Channels para distintos propósitos
-reg_channel = connection.channel()  # para registro de workers
-cmd_channel = connection.channel()  # para enviar comandos
-stt_channel = connection.channel()  # para recibir estados
+reg_channel = reg_connection.channel()  # para recibir registros
+cmd_channel = cmd_connection.channel()  # para enviar comandos
+stt_channel = stt_connection.channel()  # para recibir estados
 
 # Declarar las queues correspondientes
 # cmd_channel.queue_declare se hará dinámicamente para cada worker

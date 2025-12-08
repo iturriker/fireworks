@@ -6,7 +6,6 @@ import pika
 import os
 import time
 import logging
-from pydantic import BaseModel
 from models.worker_model import Worker
 from models.monitor_model import Monitor
 
@@ -75,16 +74,13 @@ stt_channel = stt_connection.channel()  # para recibir estados
 reg_channel.queue_declare(queue=monitor.queue_reg)
 stt_channel.queue_declare(queue=monitor.queue_stt)
 
-# Lista de Workers registrados
-workers = {}
-
 # Callback para registrar workers
 def reg_callback(ch, method, properties, body):
     worker = Worker.model_validate_json(body)
 
-    # Evita duplicados comprobando el ID
-    if worker.id not in workers:
-        workers[worker.id] = worker
+    # Registrar el worker si no existe
+    if not monitor.check_worker(worker):
+        monitor.register_worker(worker)
         cmd_channel.queue_declare(queue=worker.queue_cmd)
         logging.info(f"Registered Worker: {worker.id} and created queue {worker.queue_cmd}")
     else:
@@ -108,9 +104,9 @@ def send_cmd(worker: Worker):
 # Enviar comandos periódicamente
 def cmd_sender():
     while True:
-        if workers:
+        if monitor.workers:
             # Elegir un worker al azar y alternar su estado active
-            target_worker = random.choice(list(workers.values()))
+            target_worker = random.choice(list(monitor.workers.values()))
             target_worker.active = not target_worker.active
             send_cmd(target_worker)
             
@@ -126,8 +122,8 @@ def stt_callback(ch, method, properties, body):
     updated_worker = Worker.model_validate_json(body)
 
     # Actualiza el estado del worker en la lista
-    if updated_worker.id in workers:
-        workers[updated_worker.id] = updated_worker
+    if monitor.check_worker(updated_worker):
+        monitor.update_worker(updated_worker)
         logging.info(f"Updated worker {updated_worker.id}")
 
 # Listener en un thread para no bloquear

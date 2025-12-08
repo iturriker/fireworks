@@ -1,0 +1,58 @@
+services:
+  rabbitmq:
+    image: rabbitmq:4.2.1-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    restart: unless-stopped
+    networks:
+      - worker_network
+
+  worker:
+    build:
+      context: workers
+      dockerfile: Dockerfile
+    environment:
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
+    depends_on:
+      - rabbitmq
+    networks:
+      - worker_network
+    volumes:
+      - ./workers:/app
+      - ./models:/app/models
+    command: ["python", "worker.py"]
+
+  monitor:
+    build:
+      context: monitor
+      dockerfile: Dockerfile
+    container_name: monitor
+    environment:
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
+    depends_on:
+      - rabbitmq
+    restart: unless-stopped
+    networks:
+      - worker_network
+    volumes:
+      - ./monitor:/app
+      - ./models:/app/models
+    command: ["python", "monitor.py"]
+
+volumes:
+  rabbitmq_data:
+
+networks:
+  worker_network:

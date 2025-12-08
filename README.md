@@ -1,4 +1,4 @@
-# Fireworks
+# 💥 Fireworks
 Este proyecto implementa un sistema distribuido de **Workers** (llamados "Fireworks") controlados por un **Monitor** utilizando **RabbitMQ** y **Python**. Cada Worker puede activarse o desactivarse remotamente, y envía su estado de vuelta al Monitor. Todo corre dentro de **Docker**, permitiendo escalar fácilmente la cantidad de Workers.
 
 ## 🏗 Estructura del proyecto

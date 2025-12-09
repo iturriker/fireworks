@@ -62,9 +62,9 @@ RABBITMQ_HOST=rabbitmq
 
 3. Construir y levantar los contenedores:
 ```bash
-docker-compose up --build --scale workers=4
+docker-compose up --build --scale worker=4
 ```
-- `--scale workers=4` crea 4 instancias de Workers.
+- `--scale worker=4` crea 4 instancias de Worker.
 - Puedes ajustar la cantidad según sea necesario.
 
 4. Revisar logs de Monitor y Workers:
@@ -85,3 +85,6 @@ docker-compose logs -f workers
 - Manejar reconexiones automáticas de los workers en caso de caída de RabbitMQ.
 - Añadir métricas de rendimiento (tiempo de respuesta de comandos, actividad por Worker).
 - Cambiar conexiones a tipo SelectConnection para permitir varios consumos por conexión
+- Añadir la posibilidad de pausar, apagar y encender el worker
+- Añadir un loggin al web-monitor para ver solo los logs a los que tenga acceso el usuario
+- Añadir filtro por tipo de worker en el web-monitor (fireworks, silverstones, waterprofs)

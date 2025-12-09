@@ -75,12 +75,13 @@ docker-compose logs -f workers
 
 ## 📝 Detalles de implementación
 - Pydantic se usa para definir el modelo `Worker`, que garantiza consistencia en los datos intercambiados.
-- Se usa **una sola conexión RabbitMQ por componente**, con **tres channels** para separar registro, comandos y estado.
+- Se usan **tres conexiones de tipo BlockingConnection por componente**, con **tres channels** para separar registro, comandos y estado.
 - Los Workers solo actualizan y loguean los campos que han cambiado al recibir un comando.
 - Monitor alterna periódicamente el estado de los Workers para demostrar la funcionalidad de activación/desactivación.
 
 ## 🎯 Posibles mejoras
-- Implementar un frontend simple para visualizar el estado de cada Worker.
+- Mejorar el frontend para visualizar el estado de cada Worker con websocket (monitor -> weboscket -> frontend)
 - Registrar la actividad de Workers en una base de datos.
-- Manejar reconexiones automáticas en caso de caída de RabbitMQ.
+- Manejar reconexiones automáticas de los workers en caso de caída de RabbitMQ.
 - Añadir métricas de rendimiento (tiempo de respuesta de comandos, actividad por Worker).
+- Cambiar conexiones a tipo SelectConnection para permitir varios consumos por conexión

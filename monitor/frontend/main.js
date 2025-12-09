@@ -42,5 +42,5 @@ async function toggleWorker(id, active) {
 // Cargar la tabla al inicio
 loadWorkers();
 
-// Actualizar cada 5 segundos
+// Actualizar cada segundo
 setInterval(loadWorkers, 1000);

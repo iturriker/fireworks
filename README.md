@@ -88,3 +88,4 @@ docker-compose logs -f workers
 - Añadir la posibilidad de pausar, apagar y encender el worker
 - Añadir un loggin al web-monitor para ver solo los logs a los que tenga acceso el usuario
 - Añadir filtro por tipo de worker en el web-monitor (fireworks, silverstones, waterprofs)
+-

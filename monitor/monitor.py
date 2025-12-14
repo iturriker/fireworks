@@ -1,10 +1,10 @@
 import socket
 import threading
 import logging
-import fastapi
 import uvicorn
 import pika
 import os
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 from models.worker_model import Worker
 from models.monitor_model import Monitor
@@ -19,6 +19,7 @@ logging.basicConfig(
 monitor = Monitor(
     id=socket.gethostname(),
     name=f"monitor_{socket.gethostname()[-4:]}",
+    workers={},
     queue_reg="worker_reg",
     queue_stt="worker_stt",
 )
@@ -51,7 +52,7 @@ stt_channel.queue_declare(queue=monitor.queue_stt)
 
 # -------------------
 # Inicializar FastAPI
-app = fastapi.FastAPI()
+app = FastAPI()
 app.title = "Monitor API"
 
 # Rutas de la API
